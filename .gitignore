@@ -4,3 +4,5 @@ sessions
 *.pyc
 .DS_Store
 uwb-qorvo-tools/lab_logs/
+*.mp4
+*.pptx

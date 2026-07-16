@@ -50,6 +50,15 @@ def parse_args():
         help="Default: model training trial duration, or 2 seconds if unavailable.",
     )
     parser.add_argument("--step-seconds", type=float, default=0.5)
+    parser.add_argument(
+        "--vote-window",
+        type=int,
+        default=1,
+        help=(
+            "Number of recent raw predictions to majority-vote. "
+            "Use 1 for raw predictions until you implement majority_vote()."
+        ),
+    )
     parser.add_argument("--out-root", default=str(LAB_DIR / "sessions"))
     parser.add_argument("--session-name")
     parser.add_argument("--python", default=sys.executable)
@@ -128,6 +137,24 @@ def prediction_confidence(model, features, prediction):
     if prediction not in classes:
         return None
     return float(probabilities[classes.index(prediction)])
+
+
+def majority_vote(predictions):
+    """Return a smoothed prediction from recent raw predictions.
+
+    TODO:
+    - Count how many times each label appears in `predictions`.
+    - Return the label with the largest count.
+    - Also return a vote fraction, such as count / len(predictions).
+    - Decide how to break ties. One reasonable policy is to choose the most
+      recent label among the tied labels.
+
+    Expected return format:
+        voted_prediction, vote_fraction, vote_counts
+
+    `vote_counts` should be a dictionary that can be written to JSON.
+    """
+    raise NotImplementedError("TODO: implement majority_vote() in eval_realtime.py")
 
 
 def extract_features_for_payload(samples, feature_set, feature_params, resample_points):
@@ -237,6 +264,7 @@ def model_config_warnings(training_config, args, ranging_span):
 
 def main():
     args = parse_args()
+    args.vote_window = max(1, int(args.vote_window))
     try:
         import joblib
     except ImportError as exc:
@@ -316,6 +344,7 @@ def main():
             "duration_s": args.duration,
             "window_seconds": args.window_seconds,
             "step_seconds": args.step_seconds,
+            "vote_window": args.vote_window,
             "ranging_span_ms": ranging_span,
             "fps": args.fps,
             "slot_span": args.slot_span,
@@ -341,6 +370,7 @@ def main():
 
     range_parser = RangeLogParser()
     range_window = deque(maxlen=range_window_samples)
+    vote_history = deque(maxlen=args.vote_window)
     last_prediction_time = 0.0
     plot = None
     if args.visualize:
@@ -361,13 +391,30 @@ def main():
                 "input_type",
                 "prediction",
                 "confidence",
+                "raw_prediction",
+                "raw_confidence",
+                "vote_fraction",
+                "vote_count",
+                "vote_window",
+                "vote_counts_json",
                 "range_window_ok_samples",
             ],
         )
         writer.writeheader()
         start_time = time.monotonic()
 
-        def write_prediction(now, sequence, prediction, confidence, ok_count):
+        def write_prediction(
+            now,
+            sequence,
+            prediction,
+            confidence,
+            raw_prediction,
+            raw_confidence,
+            vote_fraction,
+            vote_count,
+            vote_counts,
+            ok_count,
+        ):
             writer.writerow(
                 {
                     "time_s": f"{now - start_time:.3f}",
@@ -375,12 +422,26 @@ def main():
                     "input_type": "range",
                     "prediction": prediction,
                     "confidence": "" if confidence is None else f"{confidence:.4f}",
+                    "raw_prediction": raw_prediction,
+                    "raw_confidence": "" if raw_confidence is None else f"{raw_confidence:.4f}",
+                    "vote_fraction": "" if vote_fraction is None else f"{vote_fraction:.4f}",
+                    "vote_count": vote_count,
+                    "vote_window": args.vote_window,
+                    "vote_counts_json": json.dumps(vote_counts, sort_keys=True),
                     "range_window_ok_samples": ok_count,
                 }
             )
             prediction_file.flush()
-            conf_text = "" if confidence is None else f" ({confidence:.2f})"
-            print(f"prediction: {prediction}{conf_text}", flush=True)
+            if args.vote_window <= 1:
+                conf_text = "" if raw_confidence is None else f" ({raw_confidence:.2f})"
+                print(f"prediction: {prediction}{conf_text}", flush=True)
+            else:
+                vote_text = "" if vote_fraction is None else f" vote={vote_fraction:.2f}"
+                raw_text = "" if raw_confidence is None else f" ({raw_confidence:.2f})"
+                print(
+                    f"prediction: {prediction}{vote_text} | raw: {raw_prediction}{raw_text}",
+                    flush=True,
+                )
 
         def predict_from_features(features):
             if feature_names and len(features) != len(feature_names):
@@ -397,8 +458,8 @@ def main():
                 return
 
             range_window.append(sample)
-            prediction = None
-            confidence = None
+            display_prediction = None
+            display_confidence = None
             ok_count = sum(
                 1
                 for item in range_window
@@ -413,19 +474,35 @@ def main():
                     resample_points=resample_points,
                 )
                 if features is not None:
-                    prediction, confidence = predict_from_features(features)
-                if prediction is not None:
+                    raw_prediction, raw_confidence = predict_from_features(features)
+                else:
+                    raw_prediction, raw_confidence = None, None
+                if raw_prediction is not None:
+                    vote_history.append(raw_prediction)
+                    if args.vote_window <= 1:
+                        display_prediction = raw_prediction
+                        display_confidence = raw_confidence
+                        vote_fraction = None
+                        vote_counts = {}
+                    else:
+                        display_prediction, vote_fraction, vote_counts = majority_vote(vote_history)
+                        display_confidence = vote_fraction
                     last_prediction_time = now
                     write_prediction(
                         now,
                         sample.get("sequence"),
-                        prediction,
-                        confidence,
+                        display_prediction,
+                        display_confidence,
+                        raw_prediction,
+                        raw_confidence,
+                        vote_fraction,
+                        len(vote_history),
+                        vote_counts,
                         ok_count,
                     )
 
             if plot:
-                plot.update(sample, prediction=prediction, confidence=confidence)
+                plot.update(sample, prediction=display_prediction, confidence=display_confidence)
 
         try:
             time.sleep(args.startup_delay)

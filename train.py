@@ -52,23 +52,11 @@ def parse_args():
     )
     parser.add_argument(
         "--classifier",
-        choices=["random_forest", "svm_rbf", "svm_poly", "decision_tree", "knn"],
-        default="random_forest",
-        help="Classifier family to train.",
+        choices=["knn", "svm_linear", "random_forest", "svm_rbf", "svm_poly", "decision_tree", "knn"],
+        default="knn",
+        help="Starter classifier family to train. Initial implemetations are KNN and linear SVM.",
     )
-    parser.add_argument("--n-estimators", type=int, default=300, help="Random Forest trees.")
     parser.add_argument("--svm-c", type=float, default=1.0, help="SVM C regularization.")
-    parser.add_argument(
-        "--svm-gamma",
-        default="scale",
-        help="SVM gamma: scale, auto, or a positive float.",
-    )
-    parser.add_argument("--svm-degree", type=int, default=3, help="Polynomial SVM degree.")
-    parser.add_argument(
-        "--decision-tree-max-depth",
-        type=int,
-        help="Decision tree maximum depth. Default: no limit.",
-    )
     parser.add_argument("--knn-neighbors", type=int, default=5, help="KNN neighbor count.")
     parser.add_argument(
         "--knn-weights",
@@ -98,74 +86,32 @@ def parse_args():
     return parser.parse_args()
 
 
-def parse_svm_gamma(value):
-    if value in ("scale", "auto"):
-        return value
-    try:
-        gamma = float(value)
-    except ValueError as exc:
-        raise SystemExit("--svm-gamma must be scale, auto, or a positive float.") from exc
-    if gamma <= 0:
-        raise SystemExit("--svm-gamma must be positive.")
-    return gamma
-
-
 def classifier_label(classifier):
     return {
         "random_forest": "Random Forest",
         "svm_rbf": "RBF SVM",
         "svm_poly": "Polynomial SVM",
         "decision_tree": "Decision Tree",
+        "svm_linear": "Linear SVM",
         "knn": "KNN",
     }[classifier]
 
 
 def build_classifier(args, train_count):
-    from sklearn.ensemble import RandomForestClassifier
     from sklearn.neighbors import KNeighborsClassifier
     from sklearn.pipeline import make_pipeline
     from sklearn.preprocessing import StandardScaler
     from sklearn.svm import SVC
-    from sklearn.tree import DecisionTreeClassifier
 
-    if args.classifier == "random_forest":
+    if args.classifier == "svm_linear":
         params = {
-            "n_estimators": args.n_estimators,
-            "random_state": args.random_state,
-            "class_weight": "balanced",
-        }
-        return RandomForestClassifier(**params), params
-
-    if args.classifier == "svm_rbf":
-        params = {
-            "kernel": "rbf",
+            "kernel": "linear",
             "C": args.svm_c,
-            "gamma": parse_svm_gamma(args.svm_gamma),
             "class_weight": "balanced",
             "probability": True,
             "random_state": args.random_state,
         }
         return make_pipeline(StandardScaler(), SVC(**params)), params
-
-    if args.classifier == "svm_poly":
-        params = {
-            "kernel": "poly",
-            "degree": args.svm_degree,
-            "C": args.svm_c,
-            "gamma": parse_svm_gamma(args.svm_gamma),
-            "class_weight": "balanced",
-            "probability": True,
-            "random_state": args.random_state,
-        }
-        return make_pipeline(StandardScaler(), SVC(**params)), params
-
-    if args.classifier == "decision_tree":
-        params = {
-            "max_depth": args.decision_tree_max_depth,
-            "random_state": args.random_state,
-            "class_weight": "balanced",
-        }
-        return DecisionTreeClassifier(**params), params
 
     if args.classifier == "knn":
         requested_neighbors = max(1, int(args.knn_neighbors))

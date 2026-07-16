@@ -233,28 +233,34 @@ This gives about:
 1000 / 200 = 5 FPS
 ```
 
-For one controller and one controlee, this lab uses fewer slots:
+For one controller and one controlee, this lab should run near 50 FPS. You
+will configure the timing values yourself.
 
 ```text
---slot-span 2400
---slots-per-rr 6
---ranging-span 20
+slot duration (ms) = slot-span / 1200
+minimum ranging-span = slot duration * slots-per-rr
+target ranging-span = 1000 / target FPS
 ```
 
-That gives:
+For this lab, use:
 
 ```text
-1000 / 20 = 50 FPS
+target FPS = 50
+slot-span = 2400
+slots-per-rr = 6
 ```
 
-Set these variables in both terminals.
+TODO: compute a valid `RANGING_SPAN` value. It must be large enough for all
+slots in the ranging round, and it should give about 50 FPS.
+
+Set these variables in both terminals after you fill in the TODO.
 
 macOS:
 
 ```bash
 export SLOT_SPAN=2400
 export SLOTS_PER_RR=6
-export RANGING_SPAN=20
+export RANGING_SPAN=TODO_RANGING_SPAN
 ```
 
 Windows PowerShell:
@@ -262,7 +268,7 @@ Windows PowerShell:
 ```powershell
 $env:SLOT_SPAN="2400"
 $env:SLOTS_PER_RR="6"
-$env:RANGING_SPAN="20"
+$env:RANGING_SPAN="TODO_RANGING_SPAN"
 ```
 
 Again, these variables only exist in the current terminal. If you open a new
@@ -355,7 +361,8 @@ python "$env:UWB_TOOLS\scripts\fira\run_fira_twr\run_fira_twr.py" `
 
 `--diag_dump` writes `range_data_*.json` files into the folder where the command
 is run. Save the controller JSON file for your ranging analysis. The controller
-terminal should also show `ranging interval: 20 ms`.
+terminal should show a ranging interval close to the value you computed for
+`RANGING_SPAN`.
 
 ## 8. Use The Ranging Experiment Wrapper
 
@@ -412,7 +419,8 @@ The output folder will be under:
 UWB_LAB/sessions/group_<GROUP_ID>_range_demo/
 ```
 
-To plot the ranging distribution:
+To plot the ranging distribution, first finish the KDE TODO in
+`analyze_ranging_results.py`, then run:
 
 macOS:
 
@@ -440,7 +448,8 @@ Collect two controlled ranging trials:
 2. Run the wrapper for 30 seconds and save the session.
 3. Place the boards as far apart as possible up to about 2.5 m.
 4. Run the wrapper for another 30 seconds and save the session.
-5. Plot the KDE distribution for each session.
+5. Finish the TODO in `analyze_ranging_results.py`, then plot the KDE
+   distribution for each session.
 
 In your notes, report:
 
@@ -582,72 +591,78 @@ python combine_datasets.py `
 
 ## 13. Train A Range-Based Classifier
 
-Train a baseline Random Forest model.
+Train a baseline KNN model.
 
 macOS:
 
 ```bash
-python train.py datasets/gesture_dataset_YYYYMMDD_HHMMSS --side controller
+python train.py datasets/gesture_dataset_YYYYMMDD_HHMMSS \
+  --side controller \
+  --classifier knn \
+  --knn-neighbors 5
 ```
 
 Windows PowerShell:
 
 ```powershell
-python train.py datasets\gesture_dataset_YYYYMMDD_HHMMSS --side controller
+python train.py datasets\gesture_dataset_YYYYMMDD_HHMMSS `
+  --side controller `
+  --classifier knn `
+  --knn-neighbors 5
 ```
 
-Choose a different classifier with `--classifier`.
+The starter code gives you two classifiers:
 
 ```bash
-# Nonlinear SVM with RBF kernel
-python train.py datasets/combined_range_all_students \
-  --side controller \
-  --classifier svm_rbf \
-  --svm-c 1.0 \
-  --svm-gamma scale
-
-# Nonlinear SVM with polynomial kernel
-python train.py datasets/combined_range_all_students \
-  --side controller \
-  --classifier svm_poly \
-  --svm-degree 3
-
-# Decision tree
-python train.py datasets/combined_range_all_students \
-  --side controller \
-  --classifier decision_tree \
-  --decision-tree-max-depth 6
-
 # KNN
 python train.py datasets/combined_range_all_students \
   --side controller \
   --classifier knn \
   --knn-neighbors 5 \
   --knn-weights distance
+
+# Linear SVM
+python train.py datasets/combined_range_all_students \
+  --side controller \
+  --classifier svm_linear \
+  --svm-c 1.0
 ```
 
 For Windows PowerShell, use backticks instead of backslashes for multi-line
 commands.
 
+TODO: try at least one additional classifier by editing `build_classifier()` in
+`train.py`. Useful references:
+
+- scikit-learn classifier overview:
+  https://scikit-learn.org/stable/supervised_learning.html
+- Random Forest:
+  https://scikit-learn.org/stable/modules/generated/sklearn.ensemble.RandomForestClassifier.html
+- Decision Tree:
+  https://scikit-learn.org/stable/modules/generated/sklearn.tree.DecisionTreeClassifier.html
+- Nonlinear SVM:
+  https://scikit-learn.org/stable/modules/svm.html
+
 Choose the proposed gesture-specific feature set with `--feature-set proposal`.
-This uses the original baseline features and appends 10 lightweight trend,
-derivative, and valley features. The added features avoid FFT, autocorrelation,
-and other heavier calculations, so real-time evaluation stays fast. Train the
-same classifier with both feature sets to compare the difference:
+The starter proposal extractor currently returns the original baseline features
+and 10 placeholder values. Your task is to replace the placeholders in
+`extract_range_features_proposal()` with lightweight features that help separate
+the activities. Train the same classifier with both feature sets to compare the
+difference:
 
 ```bash
 # Original compact baseline features
 python train.py datasets/combined_range_all_students \
   --side controller \
   --feature-set baseline \
-  --classifier random_forest
+  --classifier knn
 
-# Baseline + proposal features for clapping / boxing / T-arm style gestures
+# Baseline + your proposal features
 python train.py datasets/combined_range_all_students \
   --side controller \
   --feature-set proposal \
   --close-threshold-cm 25 \
-  --classifier random_forest
+  --classifier knn
 ```
 
 Train on a combined dataset:
@@ -673,6 +688,12 @@ shape over each trial window:
 - average and maximum step change
 - linear trend
 - resampled distance trajectory
+
+These are the raw baseline features. For your proposal features, look for
+signals that are specific to two-handed motion, such as closeness, repeated
+hand contacts, opening/closing trends, movement amount, direction changes, and
+the spacing between valleys in the distance signal. Keep the features cheap
+enough to compute during real-time evaluation.
 
 To make the trajectory portion denser:
 
@@ -700,8 +721,7 @@ models/CLASSIFIER_range_YYYYMMDD_HHMMSS_confusion_matrix.png
 models/CLASSIFIER_range_YYYYMMDD_HHMMSS_summary.json
 ```
 
-`CLASSIFIER` will be one of `random_forest`, `svm_rbf`, `svm_poly`,
-`decision_tree`, or `knn`.
+`CLASSIFIER` will be `knn`, `svm_linear`, or a method you add.
 
 ## 14. Evaluate Generalization Across Students
 
@@ -731,11 +751,11 @@ Compare the random split accuracy and the leave-one-collector-out accuracy.
 Use the trained model with a live sliding window.
 
 The real-time evaluator does not need a classifier flag. The `.joblib` file
-stores the trained classifier, so the same command works for Random Forest,
-SVM, Decision Tree, and KNN models. The evaluator calls the saved model's
+stores the trained classifier, so the same command works for KNN, linear SVM,
+and any other classifier you add. The evaluator calls the saved model's
 `predict` method. If the model supports `predict_proba`, it also shows a
-confidence value. The SVM models trained by this lab enable probability output.
-The `.joblib` file also stores the feature set, so models trained with
+confidence value. The starter linear SVM model enables probability output. The
+`.joblib` file also stores the feature set, so models trained with
 `--feature-set proposal` automatically use the proposal feature extractor during
 real-time evaluation.
 
@@ -745,6 +765,10 @@ that metadata is available. Keep `--fps`, `--ranging-span`, `--slot-span`,
 settings unless you are intentionally testing a different setup. Add
 `--strict-model-config` if you want the script to stop instead of only warning
 when the evaluation timing differs from the model metadata.
+
+By default, the evaluator shows raw predictions with `--vote-window 1`. After
+you implement `majority_vote()` in `eval_realtime.py`, try `--vote-window 5` to
+smooth the displayed result over recent prediction windows.
 
 macOS:
 
@@ -756,6 +780,7 @@ python eval_realtime.py \
   --group-id $GROUP_ID \
   --duration 60 \
   --step-seconds 0.5 \
+  --vote-window 1 \
   --visualize
 ```
 
@@ -769,6 +794,7 @@ python eval_realtime.py `
   --group-id $env:GROUP_ID `
   --duration 60 `
   --step-seconds 0.5 `
+  --vote-window 1 `
   --visualize
 ```
 
@@ -780,11 +806,20 @@ to:
 sessions/eval_group_<GROUP_ID>_<timestamp>/realtime_predictions.csv
 ```
 
+TODO: implement majority voting in `eval_realtime.py`. The function should take
+recent raw predictions, return the most common class, report a vote fraction,
+and handle ties in a reasonable way.
+
 ## 16. Suggested Student TODOs
 
 Use the working pipeline above, then improve it:
 
-- design stronger features in `extract_range_features` inside `uwb_lab_common.py`
+- compute and verify a valid 50 Hz ranging configuration
+- implement the KDE plot in `analyze_ranging_results.py`
+- design proposal features in `extract_range_features_proposal()` inside
+  `uwb_lab_common.py`
+- add and compare at least one classifier beyond KNN and linear SVM
+- implement majority voting in `eval_realtime.py`
 - compare different trial lengths and sliding-window lengths
 - evaluate random split versus leave-one-collector-out split
 - inspect the confusion matrix and identify which activities are confused
@@ -805,7 +840,8 @@ If the update rate is wrong:
 
 - check that `SLOT_SPAN`, `SLOTS_PER_RR`, and `RANGING_SPAN` were set in both
   terminals
-- confirm the controller prints `ranging interval: 20 ms`
+- confirm the controller prints a ranging interval close to your computed
+  `RANGING_SPAN`
 - remember that terminal variables do not carry over to a new terminal
 
 If plots fail to open:

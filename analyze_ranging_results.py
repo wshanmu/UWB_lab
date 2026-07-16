@@ -2,7 +2,6 @@
 
 import argparse
 import json
-import math
 from pathlib import Path
 
 from uwb_lab_common import (
@@ -49,25 +48,29 @@ def kde(values, grid):
     arr = np.asarray(values, dtype=float)
     if len(arr) == 0:
         return np.zeros_like(grid)
-    if len(arr) == 1:
-        density = np.zeros_like(grid)
-        density[np.argmin(np.abs(grid - arr[0]))] = 1.0
-        return density
 
-    std = float(np.std(arr, ddof=1))
-    q25, q75 = np.percentile(arr, [25, 75])
-    iqr_sigma = float((q75 - q25) / 1.349) if q75 > q25 else std
-    sigma = min(v for v in (std, iqr_sigma) if v > 0) if max(std, iqr_sigma) > 0 else 1.0
-    bandwidth = max(1e-6, 0.9 * sigma * (len(arr) ** (-1.0 / 5.0)))
-
-    density = np.zeros_like(grid, dtype=float)
-    chunk_size = 1024
-    for start in range(0, len(arr), chunk_size):
-        chunk = arr[start : start + chunk_size]
-        z = (grid[:, None] - chunk[None, :]) / bandwidth
-        density += np.exp(-0.5 * z * z).sum(axis=1)
-    density /= len(arr) * bandwidth * math.sqrt(2.0 * math.pi)
-    return density
+    # TODO option A: implement a Gaussian kernel density estimate yourself,
+    # then plot the returned density with Matplotlib in main().
+    #
+    # Hints:
+    # - Pick a bandwidth from the distance spread and sample count.
+    # - For each measured distance x_i, add a Gaussian centered at x_i.
+    # - Normalize so the density integrates to about 1.
+    # - A good starting formula is Silverman's rule:
+    #   bandwidth = 0.9 * sigma * n ** (-1 / 5)
+    #
+    # - Matplotlib curve API:
+    #   https://matplotlib.org/stable/api/_as_gen/matplotlib.pyplot.plot.html
+    #
+    # Return an array with the same shape as `grid`.
+    #
+    # TODO option B: instead of using this helper, you may change main() to call
+    # seaborn.kdeplot(values, ax=ax, label=...) directly.
+    # Seaborn API:
+    # https://seaborn.pydata.org/generated/seaborn.kdeplot.html
+    raise NotImplementedError(
+        "TODO: implement KDE here, or update main() to use seaborn.kdeplot()."
+    )
 
 
 def side_values(session_dir, side, max_distance_cm, mad_z):
@@ -125,6 +128,10 @@ def main():
 
     fig, ax = plt.subplots(figsize=(8, 4.5))
     for side, values in series:
+        # TODO: visualize the filtered distance distribution.
+        # Option A: keep kde(values, grid), then plot it with ax.plot().
+        # Option B: replace these two lines with seaborn.kdeplot().
+        # You may keep ax.hist(...) as a helpful reference histogram.
         density = kde(values, grid)
         ax.plot(grid, density, lw=2, label=f"{side} KDE")
         ax.hist(values, bins="auto", density=True, alpha=0.18)

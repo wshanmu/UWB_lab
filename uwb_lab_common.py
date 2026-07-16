@@ -453,7 +453,9 @@ def extract_range_features(samples, resample_points=20):
 
     return features
 
-
+# This should align with the order of implementation in extract_range_features_proposal().
+# You don't have to use all of these features
+# but you should keep the order consistent with your implementation.
 PROPOSAL_RANGE_FEATURE_NAMES = [
     "proposal_close_fraction",
     "proposal_end_minus_start_cm",
@@ -493,94 +495,18 @@ def _ok_distance_series(samples):
     return values, times
 
 
-def _resample_if_timestamps_available(values, times, target_fs):
-    import numpy as np
-
-    if not values or len(values) != len(times) or any(t is None for t in times):
-        return np.asarray(values, dtype=float), float(target_fs)
-
-    pairs = sorted((float(t), float(v)) for t, v in zip(times, values))
-    ordered_times = np.asarray([item[0] for item in pairs], dtype=float)
-    ordered_values = np.asarray([item[1] for item in pairs], dtype=float)
-    keep = np.r_[True, np.diff(ordered_times) > 0]
-    ordered_times = ordered_times[keep]
-    ordered_values = ordered_values[keep]
-    if len(ordered_values) < 2:
-        return ordered_values, float(target_fs)
-
-    duration = float(ordered_times[-1] - ordered_times[0])
-    if duration <= 0:
-        return ordered_values, float(target_fs)
-
-    diffs = np.diff(ordered_times)
-    median_dt = float(np.median(diffs))
-    inferred_fs = 1.0 / median_dt if median_dt > 0 else float(target_fs)
-    jitter = float(np.max(np.abs(diffs - median_dt))) if len(diffs) else 0.0
-    irregular = median_dt > 0 and jitter > 0.25 * median_dt
-    if not irregular:
-        return ordered_values, inferred_fs
-
-    target_count = max(2, int(round(duration * float(target_fs))) + 1)
-    uniform_times = np.linspace(ordered_times[0], ordered_times[-1], target_count)
-    return np.interp(uniform_times, ordered_times, ordered_values), float(target_fs)
-
-
-def _median_filter_5(values):
-    import numpy as np
-
-    arr = np.asarray(values, dtype=float)
-    if len(arr) < 5:
-        return arr
-    padded = np.pad(arr, (2, 2), mode="edge")
-    return np.asarray([np.median(padded[i : i + 5]) for i in range(len(arr))], dtype=float)
-
-
-def _manual_valleys(values, effective_fs):
-    import numpy as np
-
-    d = np.asarray(values, dtype=float)
-    if len(d) < 3:
-        return [], []
-
-    distance_range = float(np.ptp(d))
-    prominence_threshold = max(3.0, 0.15 * distance_range)
-    search_radius = max(2, int(round(0.20 * float(effective_fs))))
-    min_spacing = max(1, int(round(0.15 * float(effective_fs))))
-    candidates = []
-
-    for idx in range(1, len(d) - 1):
-        if not (d[idx] <= d[idx - 1] and d[idx] < d[idx + 1]):
-            continue
-        left_start = max(0, idx - search_radius)
-        right_stop = min(len(d), idx + search_radius + 1)
-        left_peak = float(np.max(d[left_start : idx + 1]))
-        right_peak = float(np.max(d[idx:right_stop]))
-        prominence = min(left_peak, right_peak) - float(d[idx])
-        if prominence >= prominence_threshold:
-            candidates.append((idx, prominence))
-
-    selected = []
-    for idx, prominence in candidates:
-        if not selected or idx - selected[-1][0] >= min_spacing:
-            selected.append((idx, prominence))
-        elif prominence > selected[-1][1]:
-            selected[-1] = (idx, prominence)
-
-    return [idx for idx, _ in selected], [prominence for _, prominence in selected]
-
-
 def extract_range_features_proposal(
     samples,
     resample_points=20,
     fs=50.0,
-    close_threshold_cm=25.0,
+    close_threshold_cm=15.0,
     min_samples=20,
 ):
-    """Feature extractor based on the clapping/boxing/T-arm proposal.
+    """Baseline features plus student-designed proposal features.
 
-    This returns the baseline range features plus 10 lightweight proposal
-    features. It avoids FFT, Welch PSD, autocorrelation, and scipy dependency so
-    real-time evaluation stays fast.
+    The baseline features are already implemented in extract_range_features().
+    Your task is to replace the placeholder proposal features below with
+    low-cost features that help distinguish two-handed activities.
     """
     import numpy as np
 
@@ -592,67 +518,28 @@ def extract_range_features_proposal(
     if len(values) < int(min_samples):
         return None
 
-    d_raw, effective_fs = _resample_if_timestamps_available(values, times, float(fs))
-    if len(d_raw) < int(min_samples):
+    distances = np.asarray(values, dtype=float)
+    if len(distances) < int(min_samples):
         return None
-    if np.any(~np.isfinite(d_raw)):
+    if np.any(~np.isfinite(distances)):
         return None
 
-    d = _median_filter_5(d_raw)
-    n = len(d)
-    t = np.arange(n, dtype=float) / float(effective_fs)
-
-    diffs = np.diff(d)
-
-    centered_t = t - float(np.mean(t))
-    centered_d = d - float(np.mean(d))
-    denominator = float(np.sum(centered_t ** 2) * np.sum(centered_d ** 2))
-    if denominator > 0:
-        correlation = float(np.sum(centered_t * centered_d) / math.sqrt(denominator))
-        r_squared = correlation * correlation
-    else:
-        r_squared = 0.0
-
-    edge_size = max(5, n // 15)
-    start_mean = float(np.mean(d[:edge_size]))
-    end_mean = float(np.mean(d[-edge_size:]))
-
-    thirds = np.array_split(d, 3)
-    third_means = [float(np.mean(part)) for part in thirds]
-
-    increasing_fraction = float(np.mean(diffs > 0.3)) if len(diffs) else 0.0
-
-    if len(diffs):
-        velocity_sign = np.sign(diffs)
-        nonzero_sign = velocity_sign[velocity_sign != 0]
-        sign_changes = (
-            int(np.sum(nonzero_sign[1:] * nonzero_sign[:-1] < 0))
-            if len(nonzero_sign) >= 2
-            else 0
-        )
-    else:
-        sign_changes = 0
-
-    valleys, valley_prominences = _manual_valleys(d, effective_fs)
-
-    if len(valleys) >= 2:
-        valley_intervals = np.diff(np.asarray(valleys, dtype=float)) / float(effective_fs)
-        valley_interval_std = float(np.std(valley_intervals))
-    else:
-        valley_interval_std = 0.0
-
-    proposal_features = [
-        float(np.mean(d < float(close_threshold_cm))),
-        float(end_mean - start_mean),
-        r_squared,
-        float(third_means[2] - third_means[0]),
-        increasing_fraction,
-        float(np.sum(np.abs(diffs))) if len(diffs) else 0.0,
-        float(sign_changes),
-        float(len(valleys)),
-        float(np.mean(valley_prominences)) if len(valley_prominences) else 0.0,
-        valley_interval_std,
-    ]
+    # TODO: replace these placeholder values with your proposed features.
+    #
+    # Keep the feature order consistent with PROPOSAL_RANGE_FEATURE_NAMES.
+    # Good features should be cheap enough for real-time evaluation. Useful
+    # directions to try:
+    # - fraction of samples where the hands are closer than close_threshold_cm
+    # - difference between the beginning and end of the window
+    # - whether the signal has a strong increasing or decreasing trend
+    # - total movement amount, such as sum(abs(diff(distance)))
+    # - number of direction changes in the distance signal
+    # - number, spacing, or depth of valleys when the hands come together
+    #
+    # You may use `fs` if you need a sampling rate, but avoid expensive feature
+    # extraction that would slow down eval_realtime.py.
+    _ = fs, close_threshold_cm, times
+    proposal_features = [0.0 for _ in PROPOSAL_RANGE_FEATURE_NAMES]
 
     return [float(value) for value in baseline_features + proposal_features]
 

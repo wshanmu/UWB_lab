@@ -205,13 +205,13 @@ To configure a target FPS, choose:
 --ranging-span = 1000 / target FPS
 ```
 
-For example, with 6 slots and a 2 ms slot, a 50 FPS target uses:
+For this lab, use a 50 FPS target and check that your chosen ranging interval
+is not shorter than the minimum round time.
 
 ```text
 target FPS = 50
-ranging interval = 1000 / 50 = 20 ms
-minimum round time = 6 * 2 ms = 12 ms
-20 ms >= 12 ms, so this timing is valid
+slot-span = 2400
+slots-per-rr = 6
 ```
 
 ### TODO: Configure 50 FPS
@@ -220,9 +220,9 @@ Before collecting data, configure your timing variables so the experiment runs
 at 50 FPS:
 
 ```bash
-export SLOT_SPAN=<TODO>
-export SLOTS_PER_RR=<TODO>
-export RANGING_SPAN=<TODO>
+export SLOT_SPAN=TODO_SLOT_SPAN
+export SLOTS_PER_RR=TODO_SLOTS_PER_RR
+export RANGING_SPAN=TODO_RANGING_SPAN
 ```
 
 Set these three timing variables in both the controller terminal and the
@@ -237,37 +237,8 @@ FPS = 1000 / RANGING_SPAN
 The controller output should show:
 
 ```text
-ranging interval:   20 ms
+ranging interval:   <your computed RANGING_SPAN> ms
 ```
-
-### Instructor Review Examples
-
-These examples are included for instructor review and experimentation.
-
-50 FPS:
-
-```bash
-export SLOT_SPAN=2400
-export SLOTS_PER_RR=6
-export RANGING_SPAN=20
-```
-
-83.33 FPS:
-
-```bash
-export SLOT_SPAN=2400
-export SLOTS_PER_RR=6
-export RANGING_SPAN=12
-```
-
-The 83.33 FPS profile was tested on the lab DWM3001CDK pair:
-
-```text
-1000 / 12 = 83.33 FPS
-415 successful measurements out of 416 notifications in a 5 second controller run
-```
-
-Do not set `--ranging-span` below 12 ms when using this 6-slot profile.
 
 When collecting data, start the controlee first and run it longer than the
 controller. Otherwise, the controller may record timeout messages after the
