@@ -32,7 +32,20 @@ def parse_args():
     )
     parser.add_argument("--controller-port", required=True, help="Controller serial port.")
     parser.add_argument("--controlee-port", required=True, help="Controlee serial port.")
-    parser.add_argument("--group-id", required=True, type=int, help="Group ID / preamble index.")
+    parser.add_argument("--group-id", required=True, type=int, help="Group number from the class sheet.")
+    parser.add_argument(
+        "--preamble-code",
+        type=int,
+        default=10,
+        help="Sheet-assigned FiRa preamble code. Use one of 9, 10, 11, or 12.",
+    )
+    parser.add_argument(
+        "--channel",
+        type=int,
+        choices=[5, 9],
+        default=9,
+        help="Sheet-assigned UWB channel. Use channel 5 or 9.",
+    )
     parser.add_argument("--duration", type=int, default=20, help="Controller run time in seconds.")
     parser.add_argument("--fps", type=float, default=50.0, help="Target update rate.")
     parser.add_argument("--ranging-span", type=int, help="Override ranging interval in ms.")
@@ -119,22 +132,24 @@ def main():
     controller_cmd = twr_command(
         args.python,
         args.controller_port,
-        args.group_id,
+        args.preamble_code,
         args.duration,
         args.slot_span,
         args.slots_per_rr,
         ranging_span,
+        channel=args.channel,
         controlee=False,
         stats=True,
     )
     controlee_cmd = twr_command(
         args.python,
         args.controlee_port,
-        args.group_id,
+        args.preamble_code,
         controlee_duration,
         args.slot_span,
         args.slots_per_rr,
         ranging_span,
+        channel=args.channel,
         controlee=True,
         stats=True,
     )
@@ -143,6 +158,8 @@ def main():
         "kind": "ranging",
         "session_dir": str(session_dir),
         "group_id": args.group_id,
+        "preamble_code": args.preamble_code,
+        "channel": args.channel,
         "controller_port": args.controller_port,
         "controlee_port": args.controlee_port,
         "duration_s": args.duration,
@@ -159,6 +176,7 @@ def main():
     write_metadata(session_dir, metadata)
 
     print(f"Session folder: {session_dir}")
+    print(f"Group ID: {args.group_id} | preamble code: {args.preamble_code} | channel: {args.channel}")
     print(f"Target FPS: {1000.0 / ranging_span:.2f} ({ranging_span} ms interval)")
     print("Starting controlee...")
     controlee_proc, controlee_file = start_logged_process(

@@ -4,7 +4,7 @@ This lab uses two Qorvo DWM3001CDK UWB boards to run FiRa two-way ranging
 between two wrists or forearms. You will use the inter-board distance signal for
 ranging analysis and bimanual activity recognition.
 
-The folder distributed for this lab is named `UWB_LAB` and already contains the
+The folder distributed for this lab is named `UWB_lab` and already contains the
 `uwb-qorvo-tools` subfolder. The scripts in this folder use relative paths, so
 the folder can be placed anywhere on your laptop.
 
@@ -23,7 +23,7 @@ The important part is to tell Python where the Qorvo libraries are.
 macOS:
 
 ```bash
-cd UWB_LAB/uwb-qorvo-tools
+cd UWB_lab/uwb-qorvo-tools
 conda activate cosmos-ds
 export UWB_TOOLS=$(pwd)
 export PYTHONPATH="$UWB_TOOLS/lib/uwb-uci:$UWB_TOOLS/lib/uqt-utils:$UWB_TOOLS:$PYTHONPATH"
@@ -32,7 +32,7 @@ export PYTHONPATH="$UWB_TOOLS/lib/uwb-uci:$UWB_TOOLS/lib/uqt-utils:$UWB_TOOLS:$P
 Windows PowerShell:
 
 ```powershell
-cd UWB_LAB\uwb-qorvo-tools
+cd UWB_lab\uwb-qorvo-tools
 conda activate cosmos-ds
 $env:UWB_TOOLS=(Get-Location).Path
 $env:PYTHONPATH="$env:UWB_TOOLS\lib\uwb-uci;$env:UWB_TOOLS\lib\uqt-utils;$env:UWB_TOOLS;$env:PYTHONPATH"
@@ -63,12 +63,22 @@ ports, such as `COM7` and `COM8`.
 You need one controller/initiator board and one controlee/responder board.
 Record both port names.
 
+Form your group in the class sheet, then use the sheet-assigned RF settings:
+
+https://docs.google.com/spreadsheets/d/1xEM-HSpBDMrXdBSz2BphMjZDY_hA6qhXVAFCRKVvYuw/edit?usp=sharing
+
+There are eight groups total. Each group will use one preamble code from
+`9, 10, 11, 12` and one UWB channel from `5, 9`. Use the values in the sheet,
+not your group number, as the FiRa preamble code and channel.
+
 macOS setup example:
 
 ```bash
 export CONTROLLER_PORT=/dev/cu.usbmodemD46FFE3655DD1
 export CONTROLEE_PORT=/dev/cu.usbmodemE89E195B6C731
-export GROUP_ID=10
+export GROUP_ID=1
+export PREAMBLE_CODE=9
+export UWB_CHANNEL=5
 ```
 
 Windows PowerShell setup example:
@@ -76,7 +86,9 @@ Windows PowerShell setup example:
 ```powershell
 $env:CONTROLLER_PORT="COM7"
 $env:CONTROLEE_PORT="COM8"
-$env:GROUP_ID="10"
+$env:GROUP_ID="1"
+$env:PREAMBLE_CODE="9"
+$env:UWB_CHANNEL="5"
 ```
 
 `export` on macOS and `$env:` on Windows create terminal variables that later
@@ -106,22 +118,25 @@ Both commands should report `status: Ok`.
 If a board does not respond, check that no other terminal is using the same
 port, unplug and reconnect the board, then run the command again.
 
-## 4. Use Your Group Preamble Index
+## 4. Use Your Sheet-Assigned Preamble Code And Channel
 
-Each group must use its assigned group ID as the FiRa preamble index:
-
-```text
---preamble-idx <your group id>
-```
-
-For example, group 1 uses:
+Each group must use the preamble code and channel assigned in the class sheet:
 
 ```text
---preamble-idx 1
+--channel <your assigned channel>
+--preamble-idx <your assigned preamble code>
 ```
 
-Both boards in the same group must use the same value. This helps reduce
-interference when multiple groups range at the same time.
+For example, if the sheet assigns group 1 to preamble code 9 and channel 5:
+
+```text
+--channel 5
+--preamble-idx 9
+```
+
+Both boards in the same group must use the same preamble code and channel.
+The eight groups are split across preamble codes `9, 10, 11, 12` and channels
+`5, 9` to reduce interference when multiple groups range at the same time.
 
 ## 5. Run The Default FiRa TWR Demo
 
@@ -131,28 +146,33 @@ the environment, and set the variables.
 macOS:
 
 ```bash
-cd UWB_LAB/uwb-qorvo-tools
+cd UWB_lab/uwb-qorvo-tools
 conda activate cosmos-ds
 export UWB_TOOLS=$(pwd)
 export PYTHONPATH="$UWB_TOOLS/lib/uwb-uci:$UWB_TOOLS/lib/uqt-utils:$UWB_TOOLS:$PYTHONPATH"
 export CONTROLLER_PORT=/dev/cu.usbmodemD46FFE3655DD1
 export CONTROLEE_PORT=/dev/cu.usbmodemE89E195B6C731
-export GROUP_ID=10
+export GROUP_ID=1
+export PREAMBLE_CODE=9
+export UWB_CHANNEL=5
 ```
 
 Windows PowerShell:
 
 ```powershell
-cd UWB_LAB\uwb-qorvo-tools
+cd UWB_lab\uwb-qorvo-tools
 conda activate cosmos-ds
 $env:UWB_TOOLS=(Get-Location).Path
 $env:PYTHONPATH="$env:UWB_TOOLS\lib\uwb-uci;$env:UWB_TOOLS\lib\uqt-utils;$env:UWB_TOOLS;$env:PYTHONPATH"
 $env:CONTROLLER_PORT="COM7"
 $env:CONTROLEE_PORT="COM8"
-$env:GROUP_ID="10"
+$env:GROUP_ID="1"
+$env:PREAMBLE_CODE="9"
+$env:UWB_CHANNEL="5"
 ```
 
-Replace the two port values and group ID with your own values.
+Replace the two port values, group ID, preamble code, and channel with your
+own values from the class sheet.
 
 Terminal 1, start the controlee first.
 
@@ -162,7 +182,8 @@ macOS:
 python scripts/fira/run_fira_twr/run_fira_twr.py \
   -p $CONTROLEE_PORT \
   --controlee \
-  --preamble-idx $GROUP_ID \
+  --channel $UWB_CHANNEL \
+  --preamble-idx $PREAMBLE_CODE \
   --aoa-report all-disabled \
   -t 35
 ```
@@ -173,7 +194,8 @@ Windows PowerShell:
 python scripts\fira\run_fira_twr\run_fira_twr.py `
   -p $env:CONTROLEE_PORT `
   --controlee `
-  --preamble-idx $env:GROUP_ID `
+  --channel $env:UWB_CHANNEL `
+  --preamble-idx $env:PREAMBLE_CODE `
   --aoa-report all-disabled `
   -t 35
 ```
@@ -185,7 +207,8 @@ macOS:
 ```bash
 python scripts/fira/run_fira_twr/run_fira_twr.py \
   -p $CONTROLLER_PORT \
-  --preamble-idx $GROUP_ID \
+  --channel $UWB_CHANNEL \
+  --preamble-idx $PREAMBLE_CODE \
   --aoa-report all-disabled \
   -t 30
 ```
@@ -195,7 +218,8 @@ Windows PowerShell:
 ```powershell
 python scripts\fira\run_fira_twr\run_fira_twr.py `
   -p $env:CONTROLLER_PORT `
-  --preamble-idx $env:GROUP_ID `
+  --channel $env:UWB_CHANNEL `
+  --preamble-idx $env:PREAMBLE_CODE `
   --aoa-report all-disabled `
   -t 30
 ```
@@ -302,7 +326,8 @@ cd "$UWB_TOOLS/lab_logs/group_${GROUP_ID}/controlee"
 python "$UWB_TOOLS/scripts/fira/run_fira_twr/run_fira_twr.py" \
   -p $CONTROLEE_PORT \
   --controlee \
-  --preamble-idx $GROUP_ID \
+  --channel $UWB_CHANNEL \
+  --preamble-idx $PREAMBLE_CODE \
   --aoa-report all-disabled \
   --slot-span $SLOT_SPAN \
   --slots-per-rr $SLOTS_PER_RR \
@@ -318,7 +343,8 @@ cd "$env:UWB_TOOLS\lab_logs\group_$($env:GROUP_ID)\controlee"
 python "$env:UWB_TOOLS\scripts\fira\run_fira_twr\run_fira_twr.py" `
   -p $env:CONTROLEE_PORT `
   --controlee `
-  --preamble-idx $env:GROUP_ID `
+  --channel $env:UWB_CHANNEL `
+  --preamble-idx $env:PREAMBLE_CODE `
   --aoa-report all-disabled `
   --slot-span $env:SLOT_SPAN `
   --slots-per-rr $env:SLOTS_PER_RR `
@@ -335,7 +361,8 @@ macOS:
 cd "$UWB_TOOLS/lab_logs/group_${GROUP_ID}/controller"
 python "$UWB_TOOLS/scripts/fira/run_fira_twr/run_fira_twr.py" \
   -p $CONTROLLER_PORT \
-  --preamble-idx $GROUP_ID \
+  --channel $UWB_CHANNEL \
+  --preamble-idx $PREAMBLE_CODE \
   --aoa-report all-disabled \
   --slot-span $SLOT_SPAN \
   --slots-per-rr $SLOTS_PER_RR \
@@ -350,7 +377,8 @@ Windows PowerShell:
 cd "$env:UWB_TOOLS\lab_logs\group_$($env:GROUP_ID)\controller"
 python "$env:UWB_TOOLS\scripts\fira\run_fira_twr\run_fira_twr.py" `
   -p $env:CONTROLLER_PORT `
-  --preamble-idx $env:GROUP_ID `
+  --channel $env:UWB_CHANNEL `
+  --preamble-idx $env:PREAMBLE_CODE `
   --aoa-report all-disabled `
   --slot-span $env:SLOT_SPAN `
   --slots-per-rr $env:SLOTS_PER_RR `
@@ -367,7 +395,7 @@ terminal should show a ranging interval close to the value you computed for
 ## 8. Use The Ranging Experiment Wrapper
 
 The manual two-terminal workflow is useful for learning the tool. For repeated
-experiments, use `ranging_experiment_wrapper.py` from the main `UWB_LAB` folder.
+experiments, use `ranging_experiment_wrapper.py` from the main `UWB_lab` folder.
 
 The wrapper:
 
@@ -384,13 +412,15 @@ Run a 30-second 50 Hz session with a live plot.
 macOS:
 
 ```bash
-cd UWB_LAB
+cd UWB_lab
 conda activate cosmos-ds
 
 python ranging_experiment_wrapper.py \
   --controller-port $CONTROLLER_PORT \
   --controlee-port $CONTROLEE_PORT \
   --group-id $GROUP_ID \
+  --preamble-code $PREAMBLE_CODE \
+  --channel $UWB_CHANNEL \
   --duration 30 \
   --fps 50 \
   --session-name group_${GROUP_ID}_range_demo \
@@ -400,13 +430,15 @@ python ranging_experiment_wrapper.py \
 Windows PowerShell:
 
 ```powershell
-cd UWB_LAB
+cd UWB_lab
 conda activate cosmos-ds
 
 python ranging_experiment_wrapper.py `
   --controller-port $env:CONTROLLER_PORT `
   --controlee-port $env:CONTROLEE_PORT `
   --group-id $env:GROUP_ID `
+  --preamble-code $env:PREAMBLE_CODE `
+  --channel $env:UWB_CHANNEL `
   --duration 30 `
   --fps 50 `
   --session-name "group_$($env:GROUP_ID)_range_demo" `
@@ -416,7 +448,7 @@ python ranging_experiment_wrapper.py `
 The output folder will be under:
 
 ```text
-UWB_LAB/sessions/group_<GROUP_ID>_range_demo/
+UWB_lab/sessions/group_<GROUP_ID>_range_demo/
 ```
 
 To plot the ranging distribution, first finish the KDE TODO in
@@ -487,7 +519,7 @@ collect multiple trials for each class.
 
 ## 11. Collect A Gesture Dataset
 
-From `UWB_LAB`, run the collector.
+From `UWB_lab`, run the collector.
 
 macOS:
 
@@ -496,6 +528,8 @@ python collect_dataset.py \
   --controller-port $CONTROLLER_PORT \
   --controlee-port $CONTROLEE_PORT \
   --group-id $GROUP_ID \
+  --preamble-code $PREAMBLE_CODE \
+  --channel $UWB_CHANNEL \
   --collector student01 \
   --gesture clapping,t-arm,boxing,resting \
   --trials 8 \
@@ -511,6 +545,8 @@ python collect_dataset.py `
   --controller-port $env:CONTROLLER_PORT `
   --controlee-port $env:CONTROLEE_PORT `
   --group-id $env:GROUP_ID `
+  --preamble-code $env:PREAMBLE_CODE `
+  --channel $env:UWB_CHANNEL `
   --collector student01 `
   --gesture clapping,open_close_arms,passing_object,resting `
   --trials 8 `
@@ -778,6 +814,8 @@ python eval_realtime.py \
   --controller-port $CONTROLLER_PORT \
   --controlee-port $CONTROLEE_PORT \
   --group-id $GROUP_ID \
+  --preamble-code $PREAMBLE_CODE \
+  --channel $UWB_CHANNEL \
   --duration 60 \
   --step-seconds 0.5 \
   --vote-window 1 \
@@ -792,6 +830,8 @@ python eval_realtime.py `
   --controller-port $env:CONTROLLER_PORT `
   --controlee-port $env:CONTROLEE_PORT `
   --group-id $env:GROUP_ID `
+  --preamble-code $env:PREAMBLE_CODE `
+  --channel $env:UWB_CHANNEL `
   --duration 60 `
   --step-seconds 0.5 `
   --vote-window 1 `

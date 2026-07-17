@@ -229,6 +229,9 @@ def training_config_summary(rows, side, resample_points):
     return {
         "side": side,
         "resample_points": int(resample_points),
+        "group_id": numeric_summary(rows, "group_id"),
+        "preamble_code": numeric_summary(rows, "preamble_code"),
+        "channel": numeric_summary(rows, "channel"),
         "trial_duration_s": numeric_summary(rows, "trial_duration_s"),
         "fps": numeric_summary(rows, "fps"),
         "ranging_span_ms": numeric_summary(rows, "ranging_span_ms"),

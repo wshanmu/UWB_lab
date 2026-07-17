@@ -32,6 +32,9 @@ FIELDNAMES = [
     "collector",
     "gesture",
     "input_type",
+    "group_id",
+    "preamble_code",
+    "channel",
     "trial_index",
     "attempt_index",
     "trial_duration_s",
@@ -56,7 +59,20 @@ def parse_args():
     )
     parser.add_argument("--controller-port", required=True, help="Controller serial port.")
     parser.add_argument("--controlee-port", required=True, help="Controlee serial port.")
-    parser.add_argument("--group-id", required=True, type=int, help="Group ID / preamble index.")
+    parser.add_argument("--group-id", required=True, type=int, help="Group number from the class sheet.")
+    parser.add_argument(
+        "--preamble-code",
+        type=int,
+        default=10,
+        help="Sheet-assigned FiRa preamble code. Use one of 9, 10, 11, or 12.",
+    )
+    parser.add_argument(
+        "--channel",
+        type=int,
+        choices=[5, 9],
+        default=9,
+        help="Sheet-assigned UWB channel. Use channel 5 or 9.",
+    )
     parser.add_argument(
         "--gesture",
         action="append",
@@ -222,22 +238,24 @@ def start_continuous_session(args, dataset_dir, ranging_span, chunk_index):
     controller_cmd = twr_command(
         args.python,
         args.controller_port,
-        args.group_id,
+        args.preamble_code,
         args.session_duration,
         args.slot_span,
         args.slots_per_rr,
         ranging_span,
+        channel=args.channel,
         controlee=False,
         stats=True,
     )
     controlee_cmd = twr_command(
         args.python,
         args.controlee_port,
-        args.group_id,
+        args.preamble_code,
         controlee_duration,
         args.slot_span,
         args.slots_per_rr,
         ranging_span,
+        channel=args.channel,
         controlee=True,
         stats=True,
     )
@@ -281,6 +299,9 @@ def save_trial(dataset_dir, args, gesture, trial_index, attempt_index, capture, 
         "collector": args.collector,
         "gesture": gesture,
         "input_type": "range",
+        "group_id": args.group_id,
+        "preamble_code": args.preamble_code,
+        "channel": args.channel,
         "trial_index": trial_index,
         "attempt_index": attempt_index,
         "trial_duration_s": args.trial_duration,
@@ -338,6 +359,9 @@ def main():
         "collector": args.collector,
         "gestures": gestures,
         "input_type": "range",
+        "group_id": args.group_id,
+        "preamble_code": args.preamble_code,
+        "channel": args.channel,
         "collection_mode": "continuous_session_segmented_trials",
         "trials_per_gesture": args.trials,
         "trial_duration_s": args.trial_duration,
@@ -355,6 +379,7 @@ def main():
 
     print(f"Dataset folder: {dataset_dir}")
     print(f"Manifest: {manifest_path}")
+    print(f"Group ID: {args.group_id} | preamble code: {args.preamble_code} | channel: {args.channel}")
     print(f"Continuous session target: {1000.0 / ranging_span:.2f} FPS")
 
     if not args.skip_device_reset:

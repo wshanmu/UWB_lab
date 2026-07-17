@@ -58,18 +58,29 @@ In the commands below, replace:
 - `CONTROLLER_PORT` with the port for the controller/initiator board.
 - `CONTROLEE_PORT` with the port for the controlee/responder board.
 - `GROUP_ID` with your assigned lab group number.
+- `PREAMBLE_CODE` with the preamble code assigned in the class sheet.
+- `UWB_CHANNEL` with the channel assigned in the class sheet.
+
+Form your group and find your assigned preamble code and channel here:
+
+https://docs.google.com/spreadsheets/d/1xEM-HSpBDMrXdBSz2BphMjZDY_hA6qhXVAFCRKVvYuw/edit?usp=sharing
+
+There are eight groups total. The groups are split across preamble codes
+`9, 10, 11, 12` and channels `5, 9` to reduce interference.
 
 Example macOS ports:
 
 ```bash
 export CONTROLLER_PORT=/dev/cu.usbmodemD46FFE3655DD1
 export CONTROLEE_PORT=/dev/cu.usbmodemE89E195B6C731
-export GROUP_ID=10
+export GROUP_ID=1
+export PREAMBLE_CODE=9
+export UWB_CHANNEL=5
 ```
 
 Set these variables in every terminal you use. If your shell does not support
-this syntax, replace `$CONTROLLER_PORT`, `$CONTROLEE_PORT`, and `$GROUP_ID` in
-the commands with the actual values.
+this syntax, replace `$CONTROLLER_PORT`, `$CONTROLEE_PORT`, `$GROUP_ID`,
+`$PREAMBLE_CODE`, and `$UWB_CHANNEL` in the commands with the actual values.
 
 ## 3. Check Both Boards
 
@@ -82,23 +93,21 @@ python scripts/device/get_device_info/get_device_info.py -p $CONTROLEE_PORT
 
 Both boards should report `status: Ok`.
 
-## 4. Group Preamble Index
+## 4. Group Preamble Code And Channel
 
-Each group must use its assigned group ID as the FiRa preamble index. This helps
-reduce interference between groups running at the same time.
+Each group must use the preamble code and channel assigned in the class sheet.
+Do not use your group number as the preamble code unless the sheet explicitly
+assigns that value.
 
-Both boards in the same group must use the same value:
+Both boards in the same group must use the same values:
 
 ```bash
---preamble-idx $GROUP_ID
+--channel $UWB_CHANNEL
+--preamble-idx $PREAMBLE_CODE
 ```
 
-Do not use another group's preamble index. If the instructor assigns a different
-index than your group number, use the instructor-provided value.
-
-The value must be accepted by the firmware as a valid preamble code index. If
-your group number is not accepted, ask the instructor for the mapped preamble
-index for your group.
+Do not use another group's preamble code or channel. This assignment reduces
+interference when multiple groups run ranging at the same time.
 
 ## 5. Run FiRa TWR
 
@@ -124,7 +133,8 @@ Start the controlee/responder first:
 python scripts/fira/run_fira_twr/run_fira_twr.py \
   -p $CONTROLEE_PORT \
   --controlee \
-  --preamble-idx $GROUP_ID \
+  --channel $UWB_CHANNEL \
+  --preamble-idx $PREAMBLE_CODE \
   --aoa-report all-disabled \
   -t 30
 ```
@@ -136,7 +146,8 @@ Start the controller/initiator second:
 ```bash
 python scripts/fira/run_fira_twr/run_fira_twr.py \
   -p $CONTROLLER_PORT \
-  --preamble-idx $GROUP_ID \
+  --channel $UWB_CHANNEL \
+  --preamble-idx $PREAMBLE_CODE \
   --aoa-report all-disabled \
   -t 30
 ```
@@ -346,8 +357,9 @@ mkdir -p lab_logs/group_${GROUP_ID}/controlee
 ```
 
 Before running the next commands, confirm that `CONTROLLER_PORT`,
-`CONTROLEE_PORT`, `GROUP_ID`, `SLOT_SPAN`, `SLOTS_PER_RR`, `RANGING_SPAN`,
-`CIR_N_TAPS`, and `CIR_FP_TAP_OFFSET` are set in each terminal.
+`CONTROLEE_PORT`, `GROUP_ID`, `PREAMBLE_CODE`, `UWB_CHANNEL`, `SLOT_SPAN`,
+`SLOTS_PER_RR`, `RANGING_SPAN`, `CIR_N_TAPS`, and `CIR_FP_TAP_OFFSET` are set
+in each terminal.
 
 The CIR report prints many lines at 50 FPS. During data collection, redirect
 the output to a log file instead of displaying every line in the terminal. Wait
@@ -363,7 +375,8 @@ cd lab_logs/group_${GROUP_ID}/controlee
 python ../../../scripts/fira/run_fira_twr/run_fira_twr.py \
   -p $CONTROLEE_PORT \
   --controlee \
-  --preamble-idx $GROUP_ID \
+  --channel $UWB_CHANNEL \
+  --preamble-idx $PREAMBLE_CODE \
   --aoa-report all-disabled \
   --slot-span $SLOT_SPAN \
   --slots-per-rr $SLOTS_PER_RR \
@@ -383,7 +396,8 @@ cd lab_logs/group_${GROUP_ID}/controller
 
 python ../../../scripts/fira/run_fira_twr/run_fira_twr.py \
   -p $CONTROLLER_PORT \
-  --preamble-idx $GROUP_ID \
+  --channel $UWB_CHANNEL \
+  --preamble-idx $PREAMBLE_CODE \
   --aoa-report all-disabled \
   --slot-span $SLOT_SPAN \
   --slots-per-rr $SLOTS_PER_RR \

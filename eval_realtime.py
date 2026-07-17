@@ -36,7 +36,20 @@ def parse_args():
     parser.add_argument("--model", required=True, help="Range model .joblib from train.py.")
     parser.add_argument("--controller-port", required=True)
     parser.add_argument("--controlee-port", required=True)
-    parser.add_argument("--group-id", required=True, type=int)
+    parser.add_argument("--group-id", required=True, type=int, help="Group number from the class sheet.")
+    parser.add_argument(
+        "--preamble-code",
+        type=int,
+        default=10,
+        help="Sheet-assigned FiRa preamble code. Use one of 9, 10, 11, or 12.",
+    )
+    parser.add_argument(
+        "--channel",
+        type=int,
+        choices=[5, 9],
+        default=9,
+        help="Sheet-assigned UWB channel. Use channel 5 or 9.",
+    )
     parser.add_argument("--duration", type=int, default=60)
     parser.add_argument("--fps", type=float, help="Default: model training FPS, or 50 Hz if unavailable.")
     parser.add_argument("--ranging-span", type=int)
@@ -175,22 +188,24 @@ def build_commands(args, ranging_span):
     controller_cmd = twr_command(
         args.python,
         args.controller_port,
-        args.group_id,
+        args.preamble_code,
         args.duration,
         args.slot_span,
         args.slots_per_rr,
         ranging_span,
+        channel=args.channel,
         controlee=False,
         stats=True,
     )
     controlee_cmd = twr_command(
         args.python,
         args.controlee_port,
-        args.group_id,
+        args.preamble_code,
         controlee_duration,
         args.slot_span,
         args.slots_per_rr,
         ranging_span,
+        channel=args.channel,
         controlee=True,
         stats=True,
     )
@@ -341,6 +356,8 @@ def main():
             "feature_set": feature_set,
             "feature_params": feature_params,
             "group_id": args.group_id,
+            "preamble_code": args.preamble_code,
+            "channel": args.channel,
             "duration_s": args.duration,
             "window_seconds": args.window_seconds,
             "step_seconds": args.step_seconds,
@@ -359,6 +376,7 @@ def main():
     )
 
     print(f"Session folder: {session_dir}")
+    print(f"Group ID: {args.group_id} | preamble code: {args.preamble_code} | channel: {args.channel}")
     print(f"Loaded classifier: {classifier_label}")
     print(f"Loaded feature set: {feature_set}")
     print(
